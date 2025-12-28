@@ -198,44 +198,59 @@ fun ChatScreen(
                 
                 // Mic Button
                 val isListening by viewModel.isListening
+                val isMicReady by viewModel.isMicReady
                 val isTtsSpeaking by viewModel.isTtsSpeaking
+                val isTranscribing by viewModel.isTranscribing
                 val micScale by animateFloatAsState(
                     targetValue = if (isListening) 1.2f else 1.0f,
                     label = "scale"
                 )
                 
-                // Color logic: Red if listening, Secondary if AI is talking (Silence mode), otherwise PrimaryContainer
+                val listeningGreen = Color(0xFF2E7D32)
+                val transcribingBlue = MaterialTheme.colorScheme.tertiary
+                
+                // Color logic: Green if listening, Blue if transcribing, Secondary if AI is talking, otherwise PrimaryContainer
                 val buttonColor = when {
-                    isListening -> MaterialTheme.colorScheme.error
+                    isListening -> listeningGreen
+                    isTranscribing -> transcribingBlue
                     isTtsSpeaking -> MaterialTheme.colorScheme.secondary
                     else -> MaterialTheme.colorScheme.primaryContainer
                 }
                 
                 val iconColor = when {
-                    isListening -> MaterialTheme.colorScheme.onError
+                    isListening || isTranscribing -> Color.White
                     isTtsSpeaking -> MaterialTheme.colorScheme.onSecondary
                     else -> MaterialTheme.colorScheme.onPrimaryContainer
                 }
                 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Permanent Listening Indicator (No more Toast!)
-                    if (isListening) {
-                        Text(
-                            "Listening...",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    } else if (isTtsSpeaking) {
-                        Text(
-                            "AI Speaking",
-                            color = MaterialTheme.colorScheme.secondary,
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    } else {
-                        Spacer(Modifier.height(28.dp)) // Maintain layout height
+                    // Status Indicators
+                    key(isListening, isMicReady, isTtsSpeaking, isTranscribing) {
+                        Box(modifier = Modifier.padding(bottom = 32.dp)) {
+                            if (isListening && isMicReady) {
+                                Text(
+                                    "Listening...",
+                                    color = listeningGreen,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else if (isTranscribing) {
+                                Text(
+                                    "Transcribing...",
+                                    color = transcribingBlue,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else if (isTtsSpeaking) {
+                                Text(
+                                    "AI Speaking",
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            } else {
+                                Spacer(Modifier.height(28.dp))
+                            }
+                        }
                     }
 
                     Box(
@@ -245,10 +260,10 @@ fun ChatScreen(
                             .graphicsLayer {
                                 scaleX = micScale
                                 scaleY = micScale
-                                alpha = if (isLoading) 0.5f else 1.0f
+                                alpha = if (isLoading || isTranscribing) 0.5f else 1.0f
                             }
                             .background(buttonColor, CircleShape)
-                            .clickable(enabled = !isLoading) {
+                            .clickable(enabled = !isLoading && !isTranscribing) {
                                 if (isListening) {
                                     onStopRecording()
                                 } else {
@@ -256,7 +271,7 @@ fun ChatScreen(
                                 }
                             }
                     ) {
-                       if (isLoading) {
+                       if (isLoading || isTranscribing) {
                            CircularProgressIndicator(color = iconColor, modifier = Modifier.size(32.dp))
                        } else {
                            val icon = when {

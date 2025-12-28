@@ -1,12 +1,10 @@
 package com.example.deepvoicechat
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.os.Build
 import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.widget.Toast
@@ -17,34 +15,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.deepvoicechat.ui.ChatScreen
+import java.io.File
 import java.util.Locale
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var viewModel: MainViewModel
-    private var speechRecognizer: SpeechRecognizer? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var audioFile: File? = null
     private var tts: TextToSpeech? = null
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    
-    // Safety timer to commit draft if onResults is slow or missing
-    private val safetyCommitRunnable = Runnable {
-        if (!viewModel.isListening.value) {
-            Log.d("Speech", "Safety commit firing")
-            viewModel.commitDraft()
-        }
-    }
-
-    private val restartRunnable = Runnable {
-        if (viewModel.isListening.value) {
-            startListeningInternal(isRestart = true)
-        }
-    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (!isGranted) {
-             Toast.makeText(this, "Microphone permission required", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Microphone permission required", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -67,96 +53,17 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     viewModel = viewModel,
                     onStartRecording = { 
                         if (viewModel.isTtsSpeaking.value) {
-                            // First tap: Silence AI
                             tts?.stop()
                             viewModel.setIsTtsSpeaking(false)
-                            Log.d("Speech", "AI Silenced by user")
                         } else {
-                            // Normal tap: Start recording
-                            viewModel.setListening(true)
-                            // Wait for audio hardware to clear
-                            mainHandler.postDelayed({
-                                if (viewModel.isListening.value) startListeningInternal(isRestart = false) 
-                            }, 800)
+                            startRecording()
                         }
                     },
                     onStopRecording = { 
-                        stopListeningInternal() 
+                        stopRecording() 
                     }
                 )
             }
-        }
-    }
-
-    private fun destroySpeechRecognizer() {
-        speechRecognizer?.apply {
-            stopListening()
-            cancel()
-            destroy()
-        }
-        speechRecognizer = null
-    }
-
-    private fun setupSpeechRecognizer() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
-        
-        Log.d("Speech", "setupSpeechRecognizer - RECREATING")
-        destroySpeechRecognizer()
-        
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d("Speech", "onReadyForSpeech - Mic Active")
-                }
-                override fun onBeginningOfSpeech() {
-                    Log.d("Speech", "onBeginningOfSpeech")
-                }
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {
-                    Log.d("Speech", "onEndOfSpeech")
-                }
-
-                override fun onError(error: Int) {
-                    val msg = when (error) {
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Mic Busy"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No match"
-                        else -> "Mic Error: $error"
-                    }
-                    Log.e("Speech", "onError: $msg ($error)")
-                    
-                    if (!viewModel.isListening.value) {
-                         mainHandler.removeCallbacks(safetyCommitRunnable)
-                         viewModel.commitDraft() 
-                         return
-                    }
-
-                    // For continuous mode, retry after delay
-                    val delay = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 2000L else 1000L
-                    mainHandler.postDelayed(restartRunnable, delay)
-                }
-
-                override fun onResults(results: Bundle?) {
-                    mainHandler.removeCallbacks(safetyCommitRunnable)
-                    val data = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    Log.d("Speech", "onResults: $data")
-                    if (!data.isNullOrEmpty()) {
-                        viewModel.appendToDraft(data[0])
-                    }
-                    
-                    if (viewModel.isListening.value) {
-                        // Keep listening
-                        mainHandler.removeCallbacks(restartRunnable)
-                        mainHandler.postDelayed(restartRunnable, 600)
-                    } else {
-                        // User stopped, commit final
-                        viewModel.commitDraft()
-                    }
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
         }
     }
 
@@ -166,38 +73,59 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun startListeningInternal(isRestart: Boolean) {
-        Log.d("Speech", "startListeningInternal(isRestart=$isRestart)")
-        
-        mainHandler.post {
-            // Recreate ONLY on fresh turns or if null
-            if (!isRestart || speechRecognizer == null) {
-                setupSpeechRecognizer()
+    private fun startRecording() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+
+        try {
+            audioFile = File(cacheDir, "audio_record.m4a")
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                MediaRecorder()
+            }.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(16000)
+                setAudioChannels(1)
+                setOutputFile(audioFile?.absolutePath)
+                prepare()
+                start()
             }
-            
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            
-            try {
-                speechRecognizer?.cancel() // Force reset
-                speechRecognizer?.startListening(intent)
-            } catch (e: Exception) {
-                Log.e("Speech", "startListening failed: ${e.message}")
-                setupSpeechRecognizer()
-            }
+            viewModel.setListening(true)
+            // Simulating "Ready" immediately for MediaRecorder
+            viewModel.setMicReady(true)
+            Log.d("Audio", "Recording started: ${audioFile?.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("Audio", "startRecording failed", e)
+            Toast.makeText(this, "Failed to start recording", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun stopListeningInternal() {
-        Log.d("Speech", "stopListeningInternal")
-        viewModel.setListening(false)
-        speechRecognizer?.stopListening()
-        
-        mainHandler.removeCallbacks(safetyCommitRunnable)
-        mainHandler.postDelayed(safetyCommitRunnable, 2000) 
+    private fun stopRecording() {
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+            mediaRecorder = null
+            viewModel.setListening(false)
+            viewModel.setMicReady(false)
+            Log.d("Audio", "Recording stopped")
+            
+            audioFile?.let {
+                if (it.exists()) {
+                    viewModel.transcribeAudio(it)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Audio", "stopRecording failed", e)
+            viewModel.setListening(false)
+            viewModel.setMicReady(false)
+        }
     }
 
     override fun onInit(status: Int) {
@@ -228,7 +156,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        destroySpeechRecognizer()
+        mediaRecorder?.release()
         tts?.shutdown()
     }
 }

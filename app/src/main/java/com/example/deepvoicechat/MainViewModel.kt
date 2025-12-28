@@ -16,13 +16,13 @@ import com.example.deepvoicechat.models.Reasoning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.io.IOException
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -71,6 +71,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isTtsSpeaking = mutableStateOf(false)
     val isTtsSpeaking: State<Boolean> = _isTtsSpeaking
 
+    private val _isTranscribing = mutableStateOf(false)
+    val isTranscribing: State<Boolean> = _isTranscribing
+
+    private val _isMicReady = mutableStateOf(false)
+    val isMicReady: State<Boolean> = _isMicReady
+
     fun onToggleSearch(enabled: Boolean) {
         _searchEnabled.value = enabled
     }
@@ -94,9 +100,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun setListening(listening: Boolean) {
         _isListening.value = listening
-        if (listening) {
+        if (!listening) {
+            _isMicReady.value = false
+        } else {
             _speechDraft.value = ""
         }
+    }
+
+    fun setMicReady(ready: Boolean) {
+        _isMicReady.value = ready
     }
     
     fun appendToDraft(text: String) {
@@ -111,18 +123,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var isCommitting = false
     
     fun commitDraft() {
-        if (isCommitting) return
+        // No longer used for real-time speech, but keeping for text fallback
         val text = _speechDraft.value.trim()
-        Log.d("MainViewModel", "Committing draft: '$text'")
         if (text.isNotEmpty()) {
-            isCommitting = true
-            _speechDraft.value = "" // Clear draft BEFORE sending to prevent double-sends
+            _speechDraft.value = ""
             sendUserMessage(text)
-            
-            // Reset lock after a sufficient delay
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(3000)
-                isCommitting = false
+        }
+    }
+
+    fun transcribeAudio(audioFile: File) {
+        viewModelScope.launch {
+            _isTranscribing.value = true
+            _error.value = null
+            try {
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("file", audioFile.name, audioFile.asRequestBody("audio/m4a".toMediaType()))
+                    .build()
+
+                val request = Request.Builder()
+                    .url("$baseUrl/transcribe")
+                    .post(requestBody)
+                    .build()
+
+                val response = withContext(Dispatchers.IO) {
+                    client.newCall(request).execute()
+                }
+
+                if (response.isSuccessful) {
+                    val resultText = response.body?.string()?.trim() ?: ""
+                    if (resultText.isNotEmpty()) {
+                        Log.d("MainViewModel", "Whisper Result: $resultText")
+                        sendUserMessage(resultText)
+                    } else {
+                        _error.value = "Transcription returned empty result"
+                    }
+                } else {
+                    _error.value = "Transcription failed: ${response.code}"
+                }
+            } catch (e: Exception) {
+                _error.value = "Transcription Error: ${e.message}"
+            } finally {
+                _isTranscribing.value = false
+                if (audioFile.exists()) {
+                    audioFile.delete() // Clean up cache
+                }
             }
         }
     }
@@ -344,7 +389,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _messages.add(assistantMsg)
                     
                     if (_speakReplies.value) {
-                        onSpeak?.invoke(chatResponse.content)
+                        onSpeak?.invoke(cleanTextForTts(chatResponse.content))
                     }
                 }
                 
@@ -355,4 +400,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+}
+
+private fun cleanTextForTts(text: String): String {
+    return text
+        // Remove code blocks
+        .replace(Regex("```[\\s\\S]*?```"), " [code block] ")
+        // Remove Markdown headers
+        .replace(Regex("(?m)^#+\\s+"), "")
+        // Remove bold/italic formatting
+        .replace(Regex("[*_]{1,3}"), "")
+        // Remove Markdown links [text](url) -> text
+        .replace(Regex("\\[([^\\]]+)\\]\\([^\\)]+\\)"), "$1")
+        // Remove emojis (comprehensive range)
+        .replace(Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+"), "")
+        // Remove other common markdown chars
+        .replace(Regex("[`~>]"), "")
+        // Clean up extra whitespace
+        .replace(Regex("\\s+"), " ")
+        .trim()
 }
