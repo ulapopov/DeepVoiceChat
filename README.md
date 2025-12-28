@@ -48,7 +48,7 @@ graph LR
 ```
 
 ## 🏷️ GitHub Topics
-`android`, `llm`, `voice`, `chatbot`, `whisper`, `openai`, `gemini`, `claude`, `kotlin`, `jetpack-compose`
+`android`, `llm`, `voice`, `chatbot`, `whisper`, `openai`, `gemini`, `anthropic`, `reasoning`, `kotlin`
 
 ## 📄 License
 MIT
