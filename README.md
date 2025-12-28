@@ -1,17 +1,23 @@
 # DeepVoiceChat 🎙️
 
-**Talk to any LLM on Android with real-time, non-rushed voice mode.**
+**Talk to real reasoning models on Android — by voice.**
 
-DeepVoiceChat is a voice-first AI interface designed for natural conversations. Unlike standard voice assistants that cut you off mid-sentence, DeepVoiceChat uses a "Push-to-Talk" flow combined with Whisper's precision and smart TTS chunking to ensure a smooth, professional experience.
+DeepVoiceChat is a push-to-talk Android app for voice conversations with OpenAI, Anthropic, and Gemini models. It uses Whisper (STT) + text LLMs + TTS so you get thoughtful answers, not rushed “instant voice” replies.
+
+**Bonus:** You can interrupt playback anytime.
+
+**Why:** Most voice modes are optimized for speed, not depth — DeepVoiceChat lets you pick the model and prioritize the quality you want.
 
 ---
 
 ## ✨ Features
 
-- 🎤 **Whisper STT**: High-precision voice-to-text powered by OpenAI's Whisper model.
-- 🔊 **Smart TTS**: Sentence-aware chunking handles even the longest AI brain-dumps without silence.
+- 🌍 **Multi-Provider**: OpenAI, Anthropic (Claude), Gemini.
+- 🤖 **Exact Model Selection**: Choose the exact model (e.g., GPT-5, Claude, Gemini Pro).
+- 🎤 **Whisper STT**: Whisper speech-to-text for input.
+- 🔊 **Smart TTS**: Text-to-speech playback for responses (with smart chunking).
+- 🛑 **Push-to-Talk**: Interruptible playback (stop anytime).
 - 🎨 **Beautiful UI**: Native **Markdown rendering** (bold, italics, code blocks) and emerald green status indicators.
-- 🤖 **Multi-Model Support**: Switch instantly between **GPT-4o, Claude 3.5**, and **Gemini 2.0**.
 - 🔍 **Search Integration**: Toggle real-time search for up-to-date information.
 - 🔒 **Privacy First**: Proxy-based architecture keeps your API keys off the device.
 
