@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.deepvoicechat.MainViewModel
 import com.example.deepvoicechat.models.Message
+import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -307,9 +308,11 @@ fun ChatBubble(message: Message) {
             color = color,
             shape = MaterialTheme.shapes.medium
         ) {
-            Text(
-                text = message.content,
-                modifier = Modifier.padding(8.dp)
+            MarkdownText(
+                markdown = message.content,
+                modifier = Modifier.padding(8.dp),
+                color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodyLarge
             )
         }
         Text(
