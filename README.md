@@ -9,7 +9,6 @@ DeepVoiceChat is a push-to-talk Android app for voice conversations with **OpenA
 
 > **Note:** DeepVoiceChat currently requires a lightweight **proxy** (Vercel or self-hosted). Users still **bring their own API keys**.
 
----
 
 ## ✨ Features
 - 🌍 **Multi-Provider:** OpenAI, Anthropic (Claude), Gemini
