@@ -1,0 +1,18 @@
+# Android Studio
+*.iml
+.gradle/
+local.properties
+.idea/
+*.hprof
+build/
+
+# Kotlin
+*.kotlin_metadata
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (if any)
+*.keystore
+google-services.json
