@@ -28,7 +28,8 @@ data class ChatRequest(
     val max_tokens: Int? = null,
     val max_completion_tokens: Int? = null,
     val reasoning: Reasoning? = null,
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    val searchEnabled: Boolean = false
 )
 
 @Serializable

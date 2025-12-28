@@ -1,27 +1,31 @@
 package com.example.deepvoicechat.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.example.deepvoicechat.MainViewModel
 import com.example.deepvoicechat.models.Message
-import com.example.deepvoicechat.models.Model
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +34,6 @@ fun ChatScreen(
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit
 ) {
-    val providers = viewModel.providers
     val selectedProvider by viewModel.selectedProvider
     val models = viewModel.models
     val selectedModel by viewModel.selectedModel
@@ -76,7 +79,7 @@ fun ChatScreen(
                         expanded = providerExpanded,
                         onDismissRequest = { providerExpanded = false }
                     ) {
-                        providers.forEach { provider ->
+                        viewModel.providers.forEach { provider ->
                             DropdownMenuItem(
                                 text = { Text(provider) },
                                 onClick = {
@@ -156,57 +159,119 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Text("Voice")
-                    Spacer(Modifier.width(8.dp))
-                    Switch(
-                        checked = speakReplies,
-                        onCheckedChange = { viewModel.onToggleSpeakReplies(it) }
-                    )
+                    // Feature toggles
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Search", style = MaterialTheme.typography.labelLarge)
+                            val searchEnabled by viewModel.searchEnabled
+                            Switch(
+                                checked = searchEnabled,
+                                onCheckedChange = { viewModel.onToggleSearch(it) },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Voice", style = MaterialTheme.typography.labelLarge)
+                            Switch(
+                                checked = speakReplies,
+                                onCheckedChange = { viewModel.onToggleSpeakReplies(it) },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+                    }
+                    
                     Spacer(Modifier.weight(1f))
+                    
                     TextButton(onClick = { viewModel.clearHistory() }) {
-                        Icon(Icons.Filled.Delete, contentDescription = null)
+                        Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Clear")
                     }
                 }
                 
-                // Toggle Button for Speak
+                // Mic Button
                 val isListening by viewModel.isListening
-                val scale by androidx.compose.animation.core.animateFloatAsState(
+                val isTtsSpeaking by viewModel.isTtsSpeaking
+                val micScale by animateFloatAsState(
                     targetValue = if (isListening) 1.2f else 1.0f,
                     label = "scale"
                 )
-                // Use primary color when listening (active), container when idle
-                val buttonColor = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
-                val iconColor = if (isListening) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                
+                // Color logic: Red if listening, Secondary if AI is talking (Silence mode), otherwise PrimaryContainer
+                val buttonColor = when {
+                    isListening -> MaterialTheme.colorScheme.error
+                    isTtsSpeaking -> MaterialTheme.colorScheme.secondary
+                    else -> MaterialTheme.colorScheme.primaryContainer
+                }
+                
+                val iconColor = when {
+                    isListening -> MaterialTheme.colorScheme.onError
+                    isTtsSpeaking -> MaterialTheme.colorScheme.onSecondary
+                    else -> MaterialTheme.colorScheme.onPrimaryContainer
+                }
+                
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Permanent Listening Indicator (No more Toast!)
+                    if (isListening) {
+                        Text(
+                            "Listening...",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    } else if (isTtsSpeaking) {
+                        Text(
+                            "AI Speaking",
+                            color = MaterialTheme.colorScheme.secondary,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    } else {
+                        Spacer(Modifier.height(28.dp)) // Maintain layout height
+                    }
 
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                        .background(buttonColor, androidx.compose.foundation.shape.CircleShape)
-                        .clickable {
-                            if (isListening) {
-                                onStopRecording()
-                            } else {
-                                onStartRecording()
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .graphicsLayer {
+                                scaleX = micScale
+                                scaleY = micScale
+                                alpha = if (isLoading) 0.5f else 1.0f
                             }
-                        }
-                ) {
-                   if (isLoading) {
-                       CircularProgressIndicator(color = iconColor, modifier = Modifier.size(32.dp))
-                   } else {
-                       Icon(
-                           imageVector = Icons.Filled.Mic,
-                           contentDescription = if (isListening) "Tap to Stop" else "Tap to Speak",
-                           tint = iconColor,
-                           modifier = Modifier.size(32.dp)
-                       )
-                   }
+                            .background(buttonColor, CircleShape)
+                            .clickable(enabled = !isLoading) {
+                                if (isListening) {
+                                    onStopRecording()
+                                } else {
+                                    onStartRecording()
+                                }
+                            }
+                    ) {
+                       if (isLoading) {
+                           CircularProgressIndicator(color = iconColor, modifier = Modifier.size(32.dp))
+                       } else {
+                           val icon = when {
+                               isListening -> Icons.Filled.Stop
+                               isTtsSpeaking -> Icons.Filled.MicOff
+                               else -> Icons.Filled.Mic
+                           }
+                           Icon(
+                               imageVector = icon,
+                               contentDescription = if (isListening) "Stop" else if (isTtsSpeaking) "Silence" else "Speak",
+                               tint = iconColor,
+                               modifier = Modifier.size(32.dp)
+                           )
+                       }
+                    }
                 }
             }
         }

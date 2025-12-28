@@ -24,7 +24,21 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private lateinit var viewModel: MainViewModel
     private var speechRecognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
-    private var isRecording = false
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    
+    // Safety timer to commit draft if onResults is slow or missing
+    private val safetyCommitRunnable = Runnable {
+        if (!viewModel.isListening.value) {
+            Log.d("Speech", "Safety commit firing")
+            viewModel.commitDraft()
+        }
+    }
+
+    private val restartRunnable = Runnable {
+        if (viewModel.isListening.value) {
+            startListeningInternal(isRestart = true)
+        }
+    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -45,19 +59,26 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             speak(text)
         }
 
-        // Initialize Speech Recognizer
-        setupSpeechRecognizer()
-
-        checkPermission()
+        checkAndRequestPermissions()
 
         setContent {
             MaterialTheme {
                 ChatScreen(
                     viewModel = viewModel,
                     onStartRecording = { 
-                        tts?.stop() // Stop TTS if speaking (interruption)
-                        viewModel.setListening(true)
-                        startListeningInternal() 
+                        if (viewModel.isTtsSpeaking.value) {
+                            // First tap: Silence AI
+                            tts?.stop()
+                            viewModel.setIsTtsSpeaking(false)
+                            Log.d("Speech", "AI Silenced by user")
+                        } else {
+                            // Normal tap: Start recording
+                            viewModel.setListening(true)
+                            // Wait for audio hardware to clear
+                            mainHandler.postDelayed({
+                                if (viewModel.isListening.value) startListeningInternal(isRestart = false) 
+                            }, 800)
+                        }
                     },
                     onStopRecording = { 
                         stopListeningInternal() 
@@ -79,121 +100,135 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private fun setupSpeechRecognizer() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) return
         
+        Log.d("Speech", "setupSpeechRecognizer - RECREATING")
         destroySpeechRecognizer()
+        
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d("Speech", "Ready for speech")
+                    Log.d("Speech", "onReadyForSpeech - Mic Active")
                 }
                 override fun onBeginningOfSpeech() {
-                    Log.d("Speech", "Beginning of speech detected")
+                    Log.d("Speech", "onBeginningOfSpeech")
                 }
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() {
-                    Log.d("Speech", "End of speech")
+                    Log.d("Speech", "onEndOfSpeech")
                 }
 
                 override fun onError(error: Int) {
-                    Log.e("Speech", "Error code: $error")
-                    if (viewModel.isListening.value) {
-                        // If we are supposed to be listening but got an error, 
-                        // restart after a small delay.
-                        val delay = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 2000L else 1000L
-                        
-                        // For certain errors, a full recreation is better
-                        if (error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_AUDIO) {
-                            Log.d("Speech", "Critical error, recreating recognizer")
-                            destroySpeechRecognizer()
-                        }
-
-                        android.os.Handler(mainLooper).postDelayed({
-                            if (viewModel.isListening.value) {
-                                startListeningInternal()
-                            }
-                        }, delay)
-                    } else {
-                        viewModel.setListening(false)
+                    val msg = when (error) {
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Mic Busy"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No match"
+                        else -> "Mic Error: $error"
                     }
+                    Log.e("Speech", "onError: $msg ($error)")
+                    
+                    if (!viewModel.isListening.value) {
+                         mainHandler.removeCallbacks(safetyCommitRunnable)
+                         viewModel.commitDraft() 
+                         return
+                    }
+
+                    // For continuous mode, retry after delay
+                    val delay = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 2000L else 1000L
+                    mainHandler.postDelayed(restartRunnable, delay)
                 }
 
                 override fun onResults(results: Bundle?) {
+                    mainHandler.removeCallbacks(safetyCommitRunnable)
                     val data = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     Log.d("Speech", "onResults: $data")
                     if (!data.isNullOrEmpty()) {
-                        val text = data[0]
-                        viewModel.appendToDraft(text)
+                        viewModel.appendToDraft(data[0])
                     }
                     
                     if (viewModel.isListening.value) {
-                        // Slight delay before restarting to avoid BUSY error
-                        android.os.Handler(mainLooper).postDelayed({
-                            if (viewModel.isListening.value) startListeningInternal()
-                        }, 500)
+                        // Keep listening
+                        mainHandler.removeCallbacks(restartRunnable)
+                        mainHandler.postDelayed(restartRunnable, 600)
                     } else {
+                        // User stopped, commit final
                         viewModel.commitDraft()
                     }
                 }
 
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // Log.d("Speech", "Partial: ${partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)}")
-                }
+                override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
     }
-    
-    private fun checkPermission() {
+
+    private fun checkAndRequestPermissions() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    private fun startListeningInternal() {
-        if (speechRecognizer == null) {
-            setupSpeechRecognizer()
-        }
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
-        }
-        try {
-            speechRecognizer?.startListening(intent)
-        } catch (e: Exception) {
-            setupSpeechRecognizer()
+    private fun startListeningInternal(isRestart: Boolean) {
+        Log.d("Speech", "startListeningInternal(isRestart=$isRestart)")
+        
+        mainHandler.post {
+            // Recreate ONLY on fresh turns or if null
+            if (!isRestart || speechRecognizer == null) {
+                setupSpeechRecognizer()
+            }
+            
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+            
+            try {
+                speechRecognizer?.cancel() // Force reset
+                speechRecognizer?.startListening(intent)
+            } catch (e: Exception) {
+                Log.e("Speech", "startListening failed: ${e.message}")
+                setupSpeechRecognizer()
+            }
         }
     }
 
     private fun stopListeningInternal() {
+        Log.d("Speech", "stopListeningInternal")
         viewModel.setListening(false)
         speechRecognizer?.stopListening()
-        // Ensure draft is committed even if onResults is slow
-        android.os.Handler(mainLooper).postDelayed({
-            if (!viewModel.isListening.value) viewModel.commitDraft()
-        }, 500)
+        
+        mainHandler.removeCallbacks(safetyCommitRunnable)
+        mainHandler.postDelayed(safetyCommitRunnable, 2000) 
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.getDefault())
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e("TTS", "Language not supported")
-            }
-        } else {
-            Log.e("TTS", "Initialization failed")
+            tts?.setLanguage(Locale.getDefault())
+            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {
+                    mainHandler.post { viewModel.setIsTtsSpeaking(true) }
+                }
+                override fun onDone(utteranceId: String?) {
+                    mainHandler.post { viewModel.setIsTtsSpeaking(false) }
+                }
+                override fun onError(utteranceId: String?) {
+                    mainHandler.post { viewModel.setIsTtsSpeaking(false) }
+                }
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    mainHandler.post { viewModel.setIsTtsSpeaking(false) }
+                }
+            })
         }
     }
     
     private fun speak(text: String) {
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        val params = Bundle()
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ai_msg")
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "ai_msg")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        speechRecognizer?.destroy()
-        tts?.stop()
+        destroySpeechRecognizer()
         tts?.shutdown()
     }
 }

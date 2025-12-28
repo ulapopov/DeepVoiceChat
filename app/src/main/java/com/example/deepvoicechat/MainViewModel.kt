@@ -65,6 +65,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _speakReplies = mutableStateOf(true)
     val speakReplies: State<Boolean> = _speakReplies
 
+    private val _searchEnabled = mutableStateOf(false)
+    val searchEnabled: State<Boolean> = _searchEnabled
+
+    private val _isTtsSpeaking = mutableStateOf(false)
+    val isTtsSpeaking: State<Boolean> = _isTtsSpeaking
+
+    fun onToggleSearch(enabled: Boolean) {
+        _searchEnabled.value = enabled
+    }
+
+    fun setIsTtsSpeaking(speaking: Boolean) {
+        _isTtsSpeaking.value = speaking
+    }
+
     fun clearHistory() {
         _messages.clear()
         _error.value = null
@@ -94,12 +108,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    private var isCommitting = false
+    
     fun commitDraft() {
+        if (isCommitting) return
         val text = _speechDraft.value.trim()
+        Log.d("MainViewModel", "Committing draft: '$text'")
         if (text.isNotEmpty()) {
+            isCommitting = true
+            _speechDraft.value = "" // Clear draft BEFORE sending to prevent double-sends
             sendUserMessage(text)
+            
+            // Reset lock after a sufficient delay
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(3000)
+                isCommitting = false
+            }
         }
-        _speechDraft.value = ""
     }
 
     // Callback for TTS - to be set by Activity
@@ -250,8 +275,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var lastSendTime = 0L
+
     fun sendUserMessage(text: String) {
-        if (text.isBlank()) return
+        val now = System.currentTimeMillis()
+        if (text.isBlank() || (now - lastSendTime < 3000)) {
+            Log.d("MainViewModel", "Refusing message (duplicate or too fast): '$text'")
+            return
+        }
+        lastSendTime = now
         
         val userMsg = Message("user", text)
         _messages.add(userMsg)
@@ -282,8 +314,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // Reasoning models use max_completion_tokens, legacy models use max_tokens
                     max_tokens = if (isReasoningModel) null else 2048,
                     max_completion_tokens = if (isReasoningModel) 2048 else null,
-                    reasoning = if (isReasoningModel) Reasoning(effort = "minimal") else null
-                    // temperature is now handled by the proxy (omitted for GPT-5)
+                    reasoning = if (isReasoningModel) Reasoning(effort = "minimal") else null,
+                    searchEnabled = _searchEnabled.value
                 )
                 
                 val jsonBody = json.encodeToString(reqBody)
