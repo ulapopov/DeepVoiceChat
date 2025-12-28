@@ -36,10 +36,12 @@ Set `baseUrl` in `MainViewModel.kt` to:
 ### 3) Add your API keys
 Configure provider keys in the proxy environment variables (OpenAI / Anthropic / Gemini).
 
-## 📸 Screenshot
+## 📸 Screenshots
 
 <p align="center">
-  <img src="assets/screenshot.png" width="300" title="DeepVoiceChat UI">
+  <img src="assets/deepvoice2.png" width="250" title="Model Selection">
+  <img src="assets/deepvoice3.png" width="250" title="Listening Mode">
+  <img src="assets/deepvoice4.png" width="250" title="Provider Selection">
 </p>
 
 ---
