@@ -27,11 +27,11 @@ DeepVoiceChat requires a lightweight bridge to securely handle API calls.
 3. Update `baseUrl` in `MainViewModel.kt` with your deployed proxy URL.
 4. Build and Run!
 
-## 📸 Screenshots & Demo
+## 📸 Screenshot
 
-| Chat Interface | Voice Mode |
-| :---: | :---: |
-| ![Chat](https://via.placeholder.com/300x600?text=Chat+Interface) | ![Voice](https://via.placeholder.com/300x600?text=Voice+Mode) |
+<p align="center">
+  <img src="assets/screenshot.png" width="300" title="DeepVoiceChat UI">
+</p>
 
 ---
 
