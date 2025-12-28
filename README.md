@@ -21,7 +21,7 @@ DeepVoiceChat is a push-to-talk Android app for voice conversations with **OpenA
 - 🔒 **BYOK:** use your own API keys (configured in the proxy)
 - 🧩 **Proxy required:** Vercel-deployable or self-hosted
 
-DeepVoiceChat keeps a single session history. If you switch provider/model mid-chat, the newly selected model sees the full prior conversation (including responses from other providers).
+> **Note:** DeepVoiceChat keeps a single session history. If you switch provider/model mid-chat, the newly selected model sees the full prior conversation (including responses from other providers).
 
 ## 🚀 Quick Start
 
