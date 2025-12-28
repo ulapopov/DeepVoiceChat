@@ -14,7 +14,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.DeepVoiceChat"
-        android:usesCleartextTraffic="true"
         tools:targetApi="31">
         
         <!-- DeepVoiceChat does not technically need a specific theme xml for Compose but we keep standard structure -->

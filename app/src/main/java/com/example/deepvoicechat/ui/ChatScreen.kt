@@ -18,6 +18,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Delete
 import com.example.deepvoicechat.MainViewModel
 import com.example.deepvoicechat.models.Message
 import com.example.deepvoicechat.models.Model
@@ -155,12 +156,18 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Text("Speak Replies")
+                    Text("Voice")
                     Spacer(Modifier.width(8.dp))
                     Switch(
                         checked = speakReplies,
                         onCheckedChange = { viewModel.onToggleSpeakReplies(it) }
                     )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.clearHistory() }) {
+                        Icon(Icons.Filled.Delete, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Clear")
+                    }
                 }
                 
                 // Toggle Button for Speak

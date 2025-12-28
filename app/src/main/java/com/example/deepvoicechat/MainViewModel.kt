@@ -29,13 +29,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // PROXY URL - User to configure
     // Suggestion: 10.0.2.2 is localhost for Android Emulator
-    private var baseUrl = "http://192.168.68.101:3000"
+    private var baseUrl = "https://deepvoice-proxy.vercel.app"
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+        
     private val json = Json { 
         ignoreUnknownKeys = true 
         explicitNulls = false 
-        encodeDefaults = true // Force encoding defaults to see what's happening
+        encodeDefaults = true 
     }
 
     // State
@@ -59,6 +64,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _speakReplies = mutableStateOf(true)
     val speakReplies: State<Boolean> = _speakReplies
+
+    fun clearHistory() {
+        _messages.clear()
+        _error.value = null
+    }
 
     private val _error = mutableStateOf<String?>(null)
     val error: State<String?> = _error
@@ -294,17 +304,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val errorBody = response.body?.string() ?: "No error body"
                     Log.e("MainViewModel", "Chat failed: ${response.code} Body: $errorBody")
                     _error.value = "Chat failed: ${response.code}\nResp: $errorBody\n\nSent: $jsonBody"
-                    return@launch
-                }
-                
-                val body = response.body?.string() ?: ""
-                val chatResponse = json.decodeFromString<ChatResponse>(body)
-                
-                val assistantMsg = Message("assistant", chatResponse.content)
-                _messages.add(assistantMsg)
-                
-                if (_speakReplies.value) {
-                    onSpeak?.invoke(chatResponse.content)
+                } else {
+                    val body = response.body?.string() ?: ""
+                    val chatResponse = json.decodeFromString<ChatResponse>(body)
+                    
+                    val assistantMsg = Message("assistant", chatResponse.content)
+                    _messages.add(assistantMsg)
+                    
+                    if (_speakReplies.value) {
+                        onSpeak?.invoke(chatResponse.content)
+                    }
                 }
                 
             } catch (e: Exception) {
