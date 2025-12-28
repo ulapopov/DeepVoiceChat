@@ -17,8 +17,6 @@ DeepVoiceChat is a push-to-talk Android app for voice conversations with OpenAI,
 - 🎤 **Whisper STT**: Whisper speech-to-text for input.
 - 🔊 **Smart TTS**: Text-to-speech playback for responses (with smart chunking).
 - 🛑 **Push-to-Talk**: Interruptible playback (stop anytime).
-- 🎨 **Beautiful UI**: Native **Markdown rendering** (bold, italics, code blocks) and emerald green status indicators.
-- 🔍 **Search Integration**: Toggle real-time search for up-to-date information.
 - 🔒 **Privacy First**: Proxy-based architecture keeps your API keys off the device.
 
 ## 🚀 Quick Start
