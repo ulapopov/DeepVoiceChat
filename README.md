@@ -14,11 +14,14 @@ DeepVoiceChat is a push-to-talk Android app for voice conversations with **OpenA
 ## ✨ Features
 - 🌍 **Multi-Provider:** OpenAI, Anthropic (Claude), Gemini
 - 🤖 **Exact Model Selection:** choose the exact model (e.g., GPT-5, Claude, Gemini Pro)
+- 🔁 **Mid-conversation switching:** switch providers/models anytime (GPT ↔ Claude ↔ Gemini) and keep the same conversation context
 - 🎤 **Whisper STT:** speech-to-text input
 - 🔊 **Smart TTS:** chunked playback for smoother listening
 - 🛑 **Push-to-Talk:** interrupt playback anytime
 - 🔒 **BYOK:** use your own API keys (configured in the proxy)
 - 🧩 **Proxy required:** Vercel-deployable or self-hosted
+
+DeepVoiceChat keeps a single session history. If you switch provider/model mid-chat, the newly selected model sees the full prior conversation (including responses from other providers).
 
 ## 🚀 Quick Start
 
