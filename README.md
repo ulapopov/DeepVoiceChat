@@ -39,8 +39,8 @@ Configure provider keys in the proxy environment variables (OpenAI / Anthropic /
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="assets/deepvoice2.png" width="250" title="Model Selection">
   <img src="assets/deepvoice3.png" width="250" title="Listening Mode">
+  <img src="assets/deepvoice2.png" width="250" title="Model Selection">
   <img src="assets/deepvoice4.png" width="250" title="Provider Selection">
 </p>
 
