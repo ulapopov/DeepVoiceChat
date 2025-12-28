@@ -132,26 +132,82 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) {
             tts?.setLanguage(Locale.getDefault())
             tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                private var lastUtteranceId: String? = null
+
                 override fun onStart(utteranceId: String?) {
                     mainHandler.post { viewModel.setIsTtsSpeaking(true) }
                 }
+
                 override fun onDone(utteranceId: String?) {
-                    mainHandler.post { viewModel.setIsTtsSpeaking(false) }
+                    if (utteranceId?.startsWith("ai_msg_final") == true || utteranceId == "ai_msg") {
+                        mainHandler.post { viewModel.setIsTtsSpeaking(false) }
+                    }
                 }
+
                 override fun onError(utteranceId: String?) {
                     mainHandler.post { viewModel.setIsTtsSpeaking(false) }
                 }
+
                 override fun onStop(utteranceId: String?, interrupted: Boolean) {
                     mainHandler.post { viewModel.setIsTtsSpeaking(false) }
                 }
             })
         }
     }
-    
+
     private fun speak(text: String) {
-        val params = Bundle()
-        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ai_msg")
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "ai_msg")
+        if (text.isBlank()) return
+        
+        // Android TTS has a limit of ~4000 chars. We'll use 2000 for safety and split by sentences.
+        val maxLength = 2000
+        if (text.length <= maxLength) {
+            val params = Bundle()
+            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "ai_msg")
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "ai_msg")
+        } else {
+            // Split into chunks by sentences
+            val chunks = splitTextIntoChunks(text, maxLength)
+            chunks.forEachIndexed { index, chunk ->
+                val utteranceId = if (index == chunks.size - 1) "ai_msg_final_$index" else "ai_msg_chunk_$index"
+                val params = Bundle()
+                params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
+                
+                val queueMode = if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                tts?.speak(chunk, queueMode, params, utteranceId)
+            }
+        }
+    }
+
+    private fun splitTextIntoChunks(text: String, maxLength: Int): List<String> {
+        val result = mutableListOf<String>()
+        var remaining = text
+        
+        while (remaining.length > maxLength) {
+            // Find the last sentence boundary within maxLength
+            val sub = remaining.substring(0, maxLength)
+            var splitIndex = sub.lastIndexOfAny(listOf(".", "!", "?", "\n"))
+            
+            // If no sentence boundary found, just split at last space
+            if (splitIndex == -1) {
+                splitIndex = sub.lastIndexOf(" ")
+            }
+            
+            // Fallback to absolute split if no space found
+            if (splitIndex == -1) {
+                splitIndex = maxLength
+            } else {
+                splitIndex += 1 // Include the punctuation/space
+            }
+            
+            result.add(remaining.substring(0, splitIndex).trim())
+            remaining = remaining.substring(splitIndex).trim()
+        }
+        
+        if (remaining.isNotEmpty()) {
+            result.add(remaining)
+        }
+        
+        return result
     }
 
     override fun onDestroy() {

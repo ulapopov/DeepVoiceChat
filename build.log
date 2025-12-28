@@ -11,16 +11,15 @@
 > Task :app:parseDebugLocalResources UP-TO-DATE
 > Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
 > Task :app:extractDeepLinksDebug UP-TO-DATE
-> Task :app:processDebugMainManifest UP-TO-DATE
-> Task :app:processDebugManifest UP-TO-DATE
-> Task :app:processDebugManifestForPackage UP-TO-DATE
-> Task :app:processDebugResources UP-TO-DATE
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug UP-TO-DATE
 > Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
 > Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:checkDebugDuplicateClasses UP-TO-DATE
 > Task :app:desugarDebugFileDependencies UP-TO-DATE
 > Task :app:mergeExtDexDebug UP-TO-DATE
@@ -31,15 +30,20 @@
 > Task :app:validateSigningDebug UP-TO-DATE
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:processDebugResources
+
 > Task :app:compileDebugKotlin
+w: file:///Users/ula/VoiceChat/app/src/main/java/com/example/deepvoicechat/MainActivity.kt:87:17 'constructor MediaRecorder()' is deprecated. Deprecated in Java
+w: file:///Users/ula/VoiceChat/app/src/main/java/com/example/deepvoicechat/MainActivity.kt:147:30 This declaration overrides deprecated member but not marked as deprecated itself. Please add @Deprecated annotation or suppress. See https://youtrack.jetbrains.com/issue/KT-47902 for details
+
 > Task :app:compileDebugJavaWithJavac NO-SOURCE
 > Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
 > Task :app:dexBuilderDebug
 > Task :app:mergeProjectDexDebug
-> Task :app:mergeDebugJavaResource
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 12s
-33 actionable tasks: 7 executed, 26 up-to-date
+BUILD SUCCESSFUL in 10s
+33 actionable tasks: 10 executed, 23 up-to-date
